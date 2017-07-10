@@ -98,14 +98,15 @@ Function StringsToPChars(List : TStrings): pointer;
 var
   EnvBlock: string;
   I: Integer;
-
+  memsize: integer;
 begin
   EnvBlock := '';
   For I:=0 to List.Count-1 do
     EnvBlock := EnvBlock + List[i] + #0;
   EnvBlock := EnvBlock + #0;
-  GetMem(Result, Length(EnvBlock));
-  CopyMemory(Result, @EnvBlock[1], Length(EnvBlock));
+  memsize := Length(EnvBlock)*sizeof(char); //L505 sizeof char added, versus old fpc char only 1 byte wide
+  GetMem(Result, memsize);
+  CopyMemory(Result, @EnvBlock[1], memsize);
 end;
 
 Procedure InitProcessAttributes(P : TProcess; Var PA : TSecurityAttributes);
@@ -122,8 +123,9 @@ begin
   TA.nLength := SizeOf(TA);
 end;
 
-Procedure InitStartupInfo(P : TProcess; Var SI : STARTUPINFOA);
-
+// L505 changed to STARTUPINFOW
+// Procedure InitStartupInfo(P : TProcess; Var SI : STARTUPINFOA);
+procedure InitStartupInfo(P : TProcess; Var SI : STARTUPINFOW);
 Const
   SWC : Array [TShowWindowOptions] of Cardinal =
              (0,SW_HIDE,SW_Maximize,SW_Minimize,SW_Restore,SW_Show,
@@ -149,13 +151,13 @@ begin
       dwFlags:=dwFlags or Startf_UseFillAttribute;
       dwFillAttribute:=P.FillAttribute;
       end;
-     dwXCountChars:=P.WindowColumns;
-     dwYCountChars:=P.WindowRows;
-     dwYsize:=P.WindowHeight;
-     dwXsize:=P.WindowWidth;
-     dwy:=P.WindowTop;
-     dwX:=P.WindowLeft;
-     end;
+    dwXCountChars:=P.WindowColumns;
+    dwYCountChars:=P.WindowRows;
+    dwYsize:=P.WindowHeight;
+    dwXsize:=P.WindowWidth;
+    dwy:=P.WindowTop;
+    dwX:=P.WindowLeft;
+    end;
 end;
 
 { The handles that are to be passed to the child process must be
@@ -166,7 +168,6 @@ end;
   non-inheritable.
 }
 function DuplicateHandleFP(var handle: THandle): Boolean;
-
 var
   oldHandle: THandle;
 begin
@@ -184,9 +185,9 @@ begin
     Result := CloseHandle(oldHandle);
 end;
 
-
-Procedure CreatePipes(Var HI,HO,HE : Thandle; Var SI : TStartupInfoA; CE : Boolean; APipeBufferSize : Cardinal);
-
+// L505 changed to TStartupInfoW
+// Procedure CreatePipes(Var HI,HO,HE : Thandle; Var SI : TStartupInfoA; CE : Boolean; APipeBufferSize : Cardinal);
+procedure CreatePipes(Var HI,HO,HE : Thandle; Var SI : TStartupInfoW; CE : Boolean; APipeBufferSize : Cardinal);
 begin
   CreatePipeHandles(SI.hStdInput,HI, APipeBufferSize);
   DuplicateHandleFP(SI.hStdInput);
@@ -204,7 +205,6 @@ begin
 end;
 
 Function MaybeQuote(Const S : String) : String;
-
 begin
   If (Pos(' ',S)<>0) then
     Result:='"'+S+'"'
@@ -213,7 +213,6 @@ begin
 end;
 
 Function MaybeQuoteIfNotQuoted(Const S : String) : String;
-
 begin
   If (Pos(' ',S)<>0) and (pos('"',S)=0) then
     Result:='"'+S+'"'
@@ -224,13 +223,14 @@ end;
 Procedure TProcess.Execute;
 Var
   i : Integer;
-  PName,PDir,PCommandLine : PAnsiChar; // L505
+  PName,PDir,PCommandLine : PChar;
   FEnv: pointer;
   FCreationFlags : Cardinal;
   FProcessAttributes : TSecurityAttributes;
   FThreadAttributes : TSecurityAttributes;
   FProcessInformation : TProcessInformation;
-  FStartupInfo : STARTUPINFOA;
+  // FStartupInfo : STARTUPINFOA;  // L505
+  FStartupInfo : STARTUPINFOW;  // L505
   HI,HO,HE : THandle;
   Cmd : String;
 
@@ -243,20 +243,20 @@ begin
     Raise EProcess.Create(SNoCommandline);
   if (FApplicationName<>'') then
     begin
-    PName:=PAnsichar(FApplicationName); // L505
-    PCommandLine:=PAnsichar(FCommandLine); // L505
+    PName:=PChar(FApplicationName);
+    PCommandLine:=PChar(FCommandLine);
     end
   else If (FCommandLine<>'') then
-    PCommandLine:=PAnsichar(FCommandLine)  // L505
+    PCommandLine:=PChar(FCommandLine)
   else if (Fexecutable<>'') then
     begin
     Cmd:=MaybeQuoteIfNotQuoted(Executable);
     For I:=0 to Parameters.Count-1 do
       Cmd:=Cmd+' '+MaybeQuoteIfNotQuoted(Parameters[i]);
-    PCommandLine:=PAnsiChar(Cmd); // L505
+    PCommandLine:=PChar(Cmd);
     end;
   If FCurrentDirectory<>'' then
-    PDir:=PAnsichar(FCurrentDirectory);  // L505
+    PDir:=PChar(FCurrentDirectory);
   if FEnvironment.Count<>0 then
     FEnv:=StringsToPChars(FEnvironment)
   else
@@ -269,8 +269,8 @@ begin
     If poUsePipes in FProcessOptions then
       CreatePipes(HI,HO,HE,FStartupInfo,Not(poStdErrToOutPut in FProcessOptions), FPipeBufferSize);
     Try
-      // L505: changed to CreateProcessA as delphi CreateProcess uses "W" by default
-      If Not CreateProcessA (PName,PCommandLine,@FProcessAttributes,@FThreadAttributes,
+      // L505: changed to CreateProcessW, fpc uses CreateProcess which is CreateProcessA
+      If Not CreateProcessW(PName,PCommandLine,@FProcessAttributes,@FThreadAttributes,
                    FInheritHandles,FCreationFlags,FEnv,PDir,FStartupInfo,
                    fProcessInformation) then
         Raise EProcess.CreateFmt(SErrCannotExecute,[FCommandLine,GetLastError]);
@@ -299,10 +299,8 @@ begin
 end;
 
 Function TProcess.WaitOnExit : Boolean;
-
 Var
   R : DWord;
-
 begin
   R:=WaitForSingleObject (FProcessHandle,Infinite);
   Result:=(R<>Wait_Failed);
@@ -312,19 +310,16 @@ begin
 end;
 
 Function TProcess.Suspend : Longint;
-
 begin
   Result:=SuspendThread(ThreadHandle);
 end;
 
 Function TProcess.Resume : LongInt;
-
 begin
   Result:=ResumeThread(ThreadHandle);
 end;
 
 Function TProcess.Terminate(AExitCode : Integer) : Boolean;
-
 begin
   Result:=False;
   If ExitStatus=Still_active then
@@ -332,8 +327,6 @@ begin
 end;
 
 Procedure TProcess.SetShowWindow (Value : TShowWindowOptions);
-
-
 begin
   FShowWindow:=Value;
 end;

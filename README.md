@@ -1,6 +1,11 @@
 # TProcess-Delphi
 TProcess for Delphi, ported from Freepascal
 
+## Issues
+Options currently known to not be working: poUsePipes. 
+Hopefully above will be fixed shortly.
+
+## About TProcess
 TProcess allows one to capture the output from another executable in a cross platform way.
 
 Many developers have complained that there is no equivalent in Delphi, so why not port it? That's what this project intends to do.

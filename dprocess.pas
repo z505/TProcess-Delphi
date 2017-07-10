@@ -216,14 +216,18 @@ Procedure CommandToList(S : String; List : TStrings);
 
   begin
     WStart:=1;
-    While (WStart<=Length(S)) and (S[WStart] in WhiteSpace) do
+    // L505 change "in" to CharInSet
+    While (WStart<=Length(S)) and (CharInSet(S[WStart], WhiteSpace)) do
       Inc(WStart);
     WEnd:=WStart;
     InLiteral:=False;
     LastLiteral:=#0;
-    While (Wend<=Length(S)) and (Not (S[Wend] in WhiteSpace) or InLiteral) do
+    // L505
+    // While (Wend<=Length(S)) and (Not (S[Wend] in WhiteSpace) or InLiteral) do
+    While (Wend<=Length(S)) and (Not (CharInSet(S[Wend], WhiteSpace)) or InLiteral) do
       begin
-      if S[Wend] in Literals then
+      // L505 changed "in" to CharInSet
+      if CharInSet(S[Wend], Literals) then
         If InLiteral then
           InLiteral:=Not (S[Wend]=LastLiteral)
         else
@@ -235,13 +239,14 @@ Procedure CommandToList(S : String; List : TStrings);
        end;
 
      Result:=Copy(S,WStart,WEnd-WStart);
-
+     // L505 changed "in" to CharInSet
      if  (Length(Result) > 0)
      and (Result[1] = Result[Length(Result)]) // if 1st char = last char and..
-     and (Result[1] in Literals) then // it's one of the literals, then
+     and (CharInSet(Result[1], Literals)) then // it's one of the literals, then
        Result:=Copy(Result, 2, Length(Result) - 2); //delete the 2 (but not others in it)
-
-     While (WEnd<=Length(S)) and (S[Wend] in WhiteSpace) do
+     // L505
+     // While (WEnd<=Length(S)) and (S[Wend] in WhiteSpace) do
+     While (WEnd<=Length(S)) and (CharInSet(S[Wend], WhiteSpace)) do
        inc(Wend);
      Delete(S,1,WEnd-1);
 
@@ -274,7 +279,6 @@ begin
 end;
 
 Destructor TProcess.Destroy;
-
 begin
   FParameters.Free;
   FEnvironment.Free;
@@ -291,9 +295,7 @@ begin
   FreeStream(THandleStream(FInputStream));
 end;
 
-
 Function TProcess.GetExitStatus : Integer;
-
 begin
   GetRunning;
   Result:=FExitCode;
@@ -301,7 +303,6 @@ end;
 
 {$IFNDEF OS_HASEXITCODE}
 Function TProcess.GetExitCode : Integer;
-
 begin
   if Not Running then
     Result:=GetExitStatus
@@ -311,13 +312,11 @@ end;
 {$ENDIF}
 
 Function TProcess.GetRunning : Boolean;
-
 begin
   IF FRunning then
     FRunning:=Not PeekExitStatus;
   Result:=FRunning;
 end;
-
 
 Procedure TProcess.CreateStreams(InHandle,OutHandle,ErrHandle : Longint);
 
@@ -358,7 +357,6 @@ begin
 end;
 
 Procedure TProcess.SetWindowColumns (Value : Cardinal);
-
 begin
   if Value<>0 then
     Include(FStartupOptions,suoUseCountChars);
@@ -367,7 +365,6 @@ end;
 
 
 Procedure TProcess.SetWindowHeight (Value : Cardinal);
-
 begin
   if Value<>0 then
     include(FStartupOptions,suoUsePosition);
@@ -375,7 +372,6 @@ begin
 end;
 
 Procedure TProcess.SetWindowLeft (Value : Cardinal);
-
 begin
   if Value<>0 then
     Include(FStartupOptions,suoUseSize);
@@ -383,7 +379,6 @@ begin
 end;
 
 Procedure TProcess.SetWindowTop (Value : Cardinal);
-
 begin
   if Value<>0 then
     Include(FStartupOptions,suoUsePosition);
@@ -434,9 +429,7 @@ begin
     end;
 end;
 
-
 Procedure TProcess.SetWindowRows (Value : Cardinal);
-
 begin
   if Value<>0 then
     Include(FStartupOptions,suoUseCountChars);
@@ -491,8 +484,8 @@ Const
 // helperfunction that does the bulk of the work.
 // We need to also collect stderr output in order to avoid
 // lock out if the stderr pipe is full.
-function internalRuncommand(p:TProcess;out outputstring:string;
-                            out stderrstring:string; out exitstatus:integer):integer;
+function internalRuncommand(p:TProcess;out outputstring: string;
+                            out stderrstring: string; out exitstatus:integer):integer;
 var
     numbytes,bytesread,available : integer;
     outputlength, stderrlength : integer;
@@ -507,6 +500,7 @@ begin
     stderrbytesread:=0;
     stderrlength:=0;
     p.Execute;
+    writeln('DEBUG: 1');
     while p.Running do
       begin
         // Only call ReadFromStream if Data from corresponding stream
@@ -514,6 +508,7 @@ begin
         // is blocking, and thus it is not possible to be sure to handle
         // big data amounts bboth on output and stderr pipes. PM.
         available:=P.Output.NumBytesAvailable;
+        writeln('DEBUG: bytesavail: ', P.Output.NumBytesAvailable);
         if  available > 0 then
           begin
             if (BytesRead + available > outputlength) then
@@ -521,7 +516,9 @@ begin
                 outputlength:=BytesRead + READ_BYTES;
                 Setlength(outputstring,outputlength);
               end;
-            NumBytes := p.Output.Read(outputstring[1+bytesread], available);
+            // L505 added pchar cast, as string is unicodestring, and NOTE: pchar is zero based . http://docwiki.embarcadero.com/RADStudio/Seattle/en/Using_Streams_to_Read_or_Write_Data
+            // NumBytes := p.Output.Read(pchar(outputstring)[1+bytesread], available);
+            NumBytes := p.Output.Read(pchar(outputstring)[bytesread], available);
             if NumBytes > 0 then
               Inc(BytesRead, NumBytes);
           end
@@ -535,7 +532,9 @@ begin
                 stderrlength:=StderrBytesRead + READ_BYTES;
                 Setlength(stderrstring,stderrlength);
               end;
-            StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
+            // L505 added pchar cast, because of unicodestring, and NOTE: pchar is zero based
+            // StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
+            StderrNumBytes := p.StdErr.Read(pchar(stderrstring)[StderrBytesRead], available);
             if StderrNumBytes > 0 then
               Inc(StderrBytesRead, StderrNumBytes);
           end
@@ -551,7 +550,9 @@ begin
             outputlength:=BytesRead + READ_BYTES;
             Setlength(outputstring,outputlength);
           end;
-        NumBytes := p.Output.Read(outputstring[1+bytesread], available);
+        // L505 added pchar cast for unicodestring, and NOTE: pchar is zero based
+        // NumBytes := p.Output.Read(outputstring[1+bytesread], available);
+        NumBytes := p.Output.Read(pchar(outputstring)[bytesread], available);
         if NumBytes > 0 then
           Inc(BytesRead, NumBytes);
         available:=P.Output.NumBytesAvailable;
@@ -565,7 +566,9 @@ begin
             stderrlength:=StderrBytesRead + READ_BYTES;
             Setlength(stderrstring,stderrlength);
           end;
-        StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
+        // L505 added pchar cast for unicodestring, and NOTE: pchar is zero based
+        // StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
+        StderrNumBytes := p.StdErr.Read(pchar(stderrstring)[StderrBytesRead], available);
         if StderrNumBytes > 0 then
           Inc(StderrBytesRead, StderrNumBytes);
       end;

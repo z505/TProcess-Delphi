@@ -18,8 +18,8 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
  **********************************************************************}
-//uses
-  //; //L505
+uses
+  windows; //L505
 
 // L505
 type
