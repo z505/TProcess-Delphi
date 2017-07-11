@@ -1,18 +1,37 @@
-{ Attempt to convert freepascal pipes unit to delphi.
+{ Freepascal pipes unit converted to Delphi.
 
   License: FPC Modified LGPL (okay to use in commercial projects)
-}
+
+  Changes to the code marked with "L505" in comments }
+
+{
+    This file is part of the Free Pascal run time library.
+    Copyright (c) 1999-2000 by Michael Van Canneyt
+
+    Implementation of pipe stream.
+
+    See the file COPYING.FPC, included in this distribution,
+    for details about the copyright.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+ **********************************************************************}
+
 
 unit dpipes;
 
 interface
 
-uses sysutils, Classes, system.types;
+uses
+  system.types, // L505
+  sysutils, Classes;
 
 type
   EPipeError = Class(EStreamError);
-  EPipeSeek = Class (EPipeError);
-  EPipeCreation = Class (EPipeError);
+  EPipeSeek = Class(EPipeError);
+  EPipeCreation = Class(EPipeError);
 
   { TInputPipeStream }
 
@@ -44,7 +63,7 @@ type
     Public
       destructor Destroy; override;
       function Seek(const Offset: int64; Origin: TSeekOrigin): int64; override;
-      Function Read (Var Buffer; Count : Longint) : longint; Override;
+      Function Read(Var Buffer; Count : Longint) : longint; Override;
     end;
 
 Function CreatePipeHandles (Var Inhandle,OutHandle : THandle; APipeBufferSize : Cardinal = 1024) : Boolean;
@@ -68,22 +87,20 @@ Implementation
 
 Procedure CreatePipeStreams (Var InPipe : TInputPipeStream;
                              Var OutPipe : TOutputPipeStream);
-
-Var InHandle,OutHandle : THandle;
-
+Var InHandle,OutHandle: THandle;
 begin
-  if CreatePipeHandles (InHandle, OutHandle) then
+  if CreatePipeHandles(InHandle, OutHandle) then
     begin
-    InPipe:=TInputPipeStream.Create (InHandle);
-    OutPipe:=TOutputPipeStream.Create (OutHandle);
+    InPipe:=TInputPipeStream.Create(InHandle);
+    OutPipe:=TOutputPipeStream.Create(OutHandle);
     end
   Else
-    Raise EPipeCreation.Create (EPipeMsg)
+    Raise EPipeCreation.Create(EPipeMsg)
 end;
 
 destructor TInputPipeStream.Destroy;
 begin
-  PipeClose (Handle);
+  PipeClose(Handle);
   inherited;
 end;
 
@@ -125,9 +142,9 @@ end;
 
 // L505
 procedure TInputPipeStream.FakeSeekForward(Offset: Int64;  const Origin: TSeekOrigin; const Pos: Int64);
-var
-  Buffer: Pointer;
-  BufferSize, i: LongInt;
+//var
+//  Buffer: Pointer;
+//  BufferSize, i: LongInt;
 begin
   if Origin=soBeginning then
     Dec(Offset,Pos);
@@ -149,23 +166,19 @@ begin
   raise EStreamError.CreateFmt('Cannot read from this stream, not implemented', []);
 end;
 
-
-Function TInputPipeStream.Write (Const Buffer; Count : Longint) : longint;
-
+Function TInputPipeStream.Write(Const Buffer; Count : Longint) : longint;
 begin
   WriteNotImplemented;
   Result := 0;
 end;
 
-Function TInputPipeStream.Read (Var Buffer; Count : Longint) : longint;
-
+Function TInputPipeStream.Read(Var Buffer; Count : Longint) : longint;
 begin
   Result:=Inherited Read(Buffer,Count);
   Inc(FPos,Result);
 end;
 
 function TInputPipeStream.Seek(const Offset: int64; Origin: TSeekOrigin): int64;
-
 begin
   FakeSeekForward(Offset,Origin,FPos);
   Result:=FPos;
@@ -173,12 +186,11 @@ end;
 
 destructor TOutputPipeStream.Destroy;
 begin
-  PipeClose (Handle);
+  PipeClose(Handle);
   inherited;
 end;
 
 Function TOutputPipeStream.Read(Var Buffer; Count : Longint) : longint;
-
 begin
   ReadNotImplemented;
   Result := 0;
@@ -190,7 +202,6 @@ begin
 end;
 
 function TOutputPipeStream.Seek(const Offset: int64; Origin: TSeekOrigin): int64;
-
 begin
   Result:=0; { to silence warning mostly }
   InvalidSeek;

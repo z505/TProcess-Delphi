@@ -1,4 +1,4 @@
-{ Freepascal pipes unit converted to delphi (needed for TProcess)
+{ Freepascal pipes unit converted to Delphi (needed for TProcess)
 
   License: FPC Modified LGPL (okay to use in commercial projects)
 
@@ -44,13 +44,12 @@ Const piInheritablePipe : TSecurityAttributes = (
 
 
 Function CreatePipeHandles (Var Inhandle,OutHandle : THandle; APipeBufferSize : Cardinal = PipeBufSize) : Boolean;
-
 begin
   // L505
   // Result := CreatePipe(@Inhandle,@OutHandle,@piNonInheritablePipe,APipeBufferSize);
   Result := CreatePipe(Inhandle,OutHandle,@piNonInheritablePipe,APipeBufferSize);
+  //writeln('DEBUG: createpipe result: ', result);
 end;
-
 
 Function TInputPipeStream.GetNumBytesAvailable: DWord;
 begin
@@ -65,10 +64,10 @@ end;
 
 procedure TInputPipeStream.InvalidSeek;
 begin
-  Raise EPipeSeek.Create (ENoSeekMsg);
+  Raise EPipeSeek.Create(ENoSeekMsg);
 end;
 
-procedure PipeClose (const FHandle: THandle); inline;
+procedure PipeClose(const FHandle: THandle); inline;
 begin
   FileClose(FHandle);
 end;

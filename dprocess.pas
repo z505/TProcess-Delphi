@@ -2,8 +2,7 @@
 
   License: FPC Modified LGPL (can use in commercial apps)
 
-  Changes to the code marked with "L505" in comments
-}
+  Changes to the code marked with "L505" in comments  }
 
 {
     This file is part of the Free Component Library (FCL)
@@ -182,6 +181,7 @@ Var
   Function DetectXTerm : String;
 {$endif}
 
+{ // L505: changed to ansistring
 function RunCommandIndir(const curdir:string;const exename:string;const commands:array of string;out outputstring:string; out exitstatus:integer; Options : TProcessOptions = []):integer; overload; //L505
 function RunCommandIndir(const curdir:string;const exename:string;const commands:array of string;out outputstring:string; Options : TProcessOptions = []):boolean; overload; // L505
 function RunCommand(const exename:string;const commands:array of string;out outputstring:string; Options : TProcessOptions = []):boolean; overload;// L505
@@ -189,6 +189,15 @@ function RunCommand(const exename:string;const commands:array of string;out outp
 
 function RunCommandInDir(const curdir,cmdline:string;out outputstring:string):boolean; deprecated; overload; // L505
 function RunCommand(const cmdline:string;out outputstring:string):boolean; deprecated; overload; // L505
+}
+
+function RunCommandIndir(const curdir: string; const exename: string; const commands: array of string; out outputstring: ansistring; out exitstatus:integer; Options : TProcessOptions = []):integer; overload; //L505
+function RunCommandIndir(const curdir: string; const exename: string; const commands: array of string; out outputstring: ansistring; Options : TProcessOptions = []):boolean; overload; // L505
+function RunCommand(const exename: string; const commands: array of string; out outputstring: ansistring; Options : TProcessOptions = []):boolean; overload;// L505
+
+
+function RunCommandInDir(const curdir,cmdline:string;out outputstring:ansistring):boolean; deprecated; overload; // L505
+function RunCommand(const cmdline:string;out outputstring:ansistring):boolean; deprecated; overload; // L505
 
 
 implementation
@@ -270,9 +279,9 @@ begin
   FProcessPriority:=ppNormal;
   FShowWindow:=swoNone;
   FInheritHandles:=True;
-  {$ifdef MACOS} // L505
+ {$ifdef MACOS} // L505
   FForkEvent:=nil;
-  {$endif}
+ {$endif}
   FPipeBufferSize := 1024;
   FEnvironment:=TStringList.Create;
   FParameters:=TStringList.Create;
@@ -484,23 +493,27 @@ Const
 // helperfunction that does the bulk of the work.
 // We need to also collect stderr output in order to avoid
 // lock out if the stderr pipe is full.
-function internalRuncommand(p:TProcess;out outputstring: string;
-                            out stderrstring: string; out exitstatus:integer):integer;
+// L505: changed to ansistring
+// function internalRuncommand(p:TProcess;out outputstring: string;
+//                            out stderrstring: string; out exitstatus:integer):integer;
+function internalRuncommand(p:TProcess;out outputstring: ansistring;
+                            out stderrstring: ansistring; out exitstatus:integer):integer;
 var
     numbytes,bytesread,available : integer;
     outputlength, stderrlength : integer;
     stderrnumbytes,stderrbytesread : integer;
 begin
   result:=-1;
+  bytesread:=0;
+  outputlength:=0;
+  stderrbytesread:=0;
+  stderrlength:=0;
+
   try
     try
     p.Options := p.Options + [poUsePipes];
-    bytesread:=0;
-    outputlength:=0;
-    stderrbytesread:=0;
-    stderrlength:=0;
     p.Execute;
-    writeln('DEBUG: 1');
+
     while p.Running do
       begin
         // Only call ReadFromStream if Data from corresponding stream
@@ -508,7 +521,7 @@ begin
         // is blocking, and thus it is not possible to be sure to handle
         // big data amounts bboth on output and stderr pipes. PM.
         available:=P.Output.NumBytesAvailable;
-        writeln('DEBUG: bytesavail: ', P.Output.NumBytesAvailable);
+        // writeln('DEBUG: bytesavail: ', P.Output.NumBytesAvailable);
         if  available > 0 then
           begin
             if (BytesRead + available > outputlength) then
@@ -516,9 +529,10 @@ begin
                 outputlength:=BytesRead + READ_BYTES;
                 Setlength(outputstring,outputlength);
               end;
-            // L505 added pchar cast, as string is unicodestring, and NOTE: pchar is zero based . http://docwiki.embarcadero.com/RADStudio/Seattle/en/Using_Streams_to_Read_or_Write_Data
-            // NumBytes := p.Output.Read(pchar(outputstring)[1+bytesread], available);
-            NumBytes := p.Output.Read(pchar(outputstring)[bytesread], available);
+            NumBytes := p.Output.Read(outputstring[1+bytesread], available);
+            // L505 if in the future above string is unicodestring, above may need work NOTE: pchar is zero based . http://docwiki.embarcadero.com/RADStudio/Seattle/en/Using_Streams_to_Read_or_Write_Data
+            // NumBytes := p.Output.Read(pchar(outputstring)[bytesread], available);
+
             if NumBytes > 0 then
               Inc(BytesRead, NumBytes);
           end
@@ -532,9 +546,10 @@ begin
                 stderrlength:=StderrBytesRead + READ_BYTES;
                 Setlength(stderrstring,stderrlength);
               end;
-            // L505 added pchar cast, because of unicodestring, and NOTE: pchar is zero based
-            // StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
-            StderrNumBytes := p.StdErr.Read(pchar(stderrstring)[StderrBytesRead], available);
+            StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
+            // L505 in the future if the above is a unicodestring this may need work, and NOTE: pchar is zero based
+            // StderrNumBytes := p.StdErr.Read(pchar(stderrstring)[StderrBytesRead], available);
+
             if StderrNumBytes > 0 then
               Inc(StderrBytesRead, StderrNumBytes);
           end
@@ -550,9 +565,10 @@ begin
             outputlength:=BytesRead + READ_BYTES;
             Setlength(outputstring,outputlength);
           end;
-        // L505 added pchar cast for unicodestring, and NOTE: pchar is zero based
-        // NumBytes := p.Output.Read(outputstring[1+bytesread], available);
-        NumBytes := p.Output.Read(pchar(outputstring)[bytesread], available);
+        NumBytes := p.Output.Read(outputstring[1+bytesread], available);
+        // L505 if above is unicodestring in the future it may need work, and NOTE: pchar is zero based
+        // NumBytes := p.Output.Read(pchar(outputstring)[bytesread], available);
+
         if NumBytes > 0 then
           Inc(BytesRead, NumBytes);
         available:=P.Output.NumBytesAvailable;
@@ -566,9 +582,10 @@ begin
             stderrlength:=StderrBytesRead + READ_BYTES;
             Setlength(stderrstring,stderrlength);
           end;
-        // L505 added pchar cast for unicodestring, and NOTE: pchar is zero based
-        // StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
-        StderrNumBytes := p.StdErr.Read(pchar(stderrstring)[StderrBytesRead], available);
+        StderrNumBytes := p.StdErr.Read(stderrstring[1+StderrBytesRead], available);
+        // L505 if above is unicodestring in the future, it may need work and NOTE: pchar is zero based
+        // StderrNumBytes := p.StdErr.Read(pchar(stderrstring)[StderrBytesRead], available);
+
         if StderrNumBytes > 0 then
           Inc(StderrBytesRead, StderrNumBytes);
       end;
@@ -592,11 +609,14 @@ end;
 Const
   ForbiddenOptions = [poRunSuspended,poWaitOnExit];
 
-function RunCommandIndir(const curdir:string;const exename:string;const commands:array of string;out outputstring:string;out exitstatus:integer; Options : TProcessOptions = []):integer;
+// L505 changed to ansistring
+// function RunCommandIndir(const curdir:string;const exename:string;const commands:array of string;out outputstring:string;out exitstatus:integer; Options : TProcessOptions = []):integer;
+function RunCommandIndir(const curdir: string; const exename: string; const commands:array of string; out outputstring: ansistring;out exitstatus:integer; Options : TProcessOptions = []):integer;
 Var
     p : TProcess;
     i : integer;
-    ErrorString : String;
+    // ErrorString : String;  // L505
+    ErrorString: ansistring;
 begin
   p:=TProcess.create(nil);
   if Options<>[] then
@@ -610,11 +630,14 @@ begin
   result:=internalruncommand(p,outputstring,errorstring,exitstatus);
 end;
 
-function RunCommandInDir(const curdir,cmdline:string;out outputstring:string):boolean; deprecated;
+// L505 changed to ansistring
+// function RunCommandInDir(const curdir,cmdline:string;out outputstring:string):boolean; deprecated;
+function RunCommandInDir(const curdir,cmdline:string;out outputstring: ansistring):boolean; deprecated;
 Var
     p : TProcess;
     exitstatus : integer;
-    ErrorString : String;
+    // ErrorString : String;  // L505
+    ErrorString: ansistring; // L505
 begin
   p:=TProcess.create(nil);
   p.setcommandline(cmdline);
@@ -624,12 +647,15 @@ begin
   if exitstatus<>0 then result:=false;
 end;
 
-function RunCommandIndir(const curdir:string;const exename:string;const commands:array of string;out outputstring:string; Options : TProcessOptions = []):boolean;
+// L505 changed to ansistring
+// function RunCommandIndir(const curdir:string;const exename:string;const commands:array of string;out outputstring:string; Options : TProcessOptions = []):boolean;
+function RunCommandIndir(const curdir: string; const exename: string; const commands:array of string; out outputstring: ansistring; Options : TProcessOptions = []):boolean;
 Var
     p : TProcess;
     i,
     exitstatus : integer;
-    ErrorString : String;
+    // ErrorString : String;  // L505
+    ErrorString: ansistring; // L505
 begin
   p:=TProcess.create(nil);
   if Options<>[] then
@@ -644,11 +670,14 @@ begin
   if exitstatus<>0 then result:=false;
 end;
 
-function RunCommand(const cmdline:string;out outputstring:string):boolean; deprecated;
+// L505 changed to ansistring
+// function RunCommand(const cmdline:string; out outputstring:string):boolean; deprecated;
+function RunCommand(const cmdline: string; out outputstring: ansistring):boolean; deprecated;
 Var
     p : TProcess;
     exitstatus : integer;
-    ErrorString : String;
+    // ErrorString : String; // L505
+    ErrorString: ansistring; // L505
 begin
   p:=TProcess.create(nil);
   p.setcommandline(cmdline);
@@ -656,12 +685,15 @@ begin
   if exitstatus<>0 then result:=false;
 end;
 
-function RunCommand(const exename:string;const commands:array of string;out outputstring:string; Options : TProcessOptions = []):boolean;
+// L505: Changed to ansistring
+// function RunCommand(const exename:string;const commands:array of string;out outputstring:string; Options : TProcessOptions = []):boolean;
+function RunCommand(const exename:string; const commands:array of string; out outputstring: ansistring; Options : TProcessOptions = []):boolean;
 Var
     p : TProcess;
     i,
     exitstatus : integer;
-    ErrorString : String;
+    // ErrorString : String;  // L505
+    ErrorString: ansistring; // L505
 begin
   p:=TProcess.create(nil);
   if Options<>[] then

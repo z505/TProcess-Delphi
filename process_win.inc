@@ -93,18 +93,21 @@ begin
     end;
 end;
 
+//L505 note: unicode string could be used, but msdn says CREATE_UNICODE_ENVIRONMENT
+// must be used with CreateProcessW. For now, ansistring will be used instead
 Function StringsToPChars(List : TStrings): pointer;
-
 var
-  EnvBlock: string;
+  EnvBlock, item: ansistring;
   I: Integer;
   memsize: integer;
 begin
   EnvBlock := '';
-  For I:=0 to List.Count-1 do
-    EnvBlock := EnvBlock + List[i] + #0;
+  For I:=0 to List.Count-1 do begin
+    item := List[i];
+    EnvBlock := EnvBlock + item + #0;
+  end;
   EnvBlock := EnvBlock + #0;
-  memsize := Length(EnvBlock)*sizeof(char); //L505 sizeof char added, versus old fpc char only 1 byte wide
+  memsize := Length(EnvBlock);  // if using unicode in the future, remember CHAR size (4) for memory allocation
   GetMem(Result, memsize);
   CopyMemory(Result, @EnvBlock[1], memsize);
 end;
@@ -192,7 +195,7 @@ begin
   CreatePipeHandles(SI.hStdInput,HI, APipeBufferSize);
   DuplicateHandleFP(SI.hStdInput);
   CreatePipeHandles(HO,Si.hStdOutput, APipeBufferSize);
-  DuplicateHandleFP(   Si.hStdOutput);
+  DuplicateHandleFP(Si.hStdOutput);
   if CE then begin
     CreatePipeHandles(HE,SI.hStdError, APipeBufferSize);
     DuplicateHandleFP(   SI.hStdError);
@@ -259,15 +262,20 @@ begin
     PDir:=PChar(FCurrentDirectory);
   if FEnvironment.Count<>0 then
     FEnv:=StringsToPChars(FEnvironment)
-  else
+  else begin
+    // writeln('DEBUG: environment nil');
     FEnv:=Nil;
+  end;
+
   Try
     FCreationFlags:=GetCreationFlags(Self);
     InitProcessAttributes(Self,FProcessAttributes);
     InitThreadAttributes(Self,FThreadAttributes);
     InitStartupInfo(Self,FStartUpInfo);
-    If poUsePipes in FProcessOptions then
+    If poUsePipes in FProcessOptions then begin
       CreatePipes(HI,HO,HE,FStartupInfo,Not(poStdErrToOutPut in FProcessOptions), FPipeBufferSize);
+    end;
+
     Try
       // L505: changed to CreateProcessW, fpc uses CreateProcess which is CreateProcessA
       If Not CreateProcessW(PName,PCommandLine,@FProcessAttributes,@FThreadAttributes,
