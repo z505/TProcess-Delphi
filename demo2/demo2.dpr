@@ -22,17 +22,20 @@ const
   BufSize = 1024;
 var
   p: TProcess;
-  Buf: string;
+  // Buf: string;
+  Buf: ansistring;
   Count: integer;
   i: integer;
   LineStart: integer;
-  OutputLine: string;
+  // OutputLine: string;
+  OutputLine: ansistring;
 begin
   p := TProcess.Create(nil);
   try
     p.Executable := Binary;
 
-    p.Options := [poUsePipes, poStdErrToOutPut];
+    p.Options := [poUsePipes,
+                  poStdErrToOutPut];
 //    p.CurrentDirectory := ExtractFilePath(p.Executable);
     p.ShowWindow := swoShowNormal;  // Is this needed?
 
@@ -47,6 +50,8 @@ begin
       if (p.Output<>nil) then
       begin
         Count:=p.Output.Read(Buf[1],Length(Buf));
+        // Count:=p.Output.Read(pchar(Buf)^, BufSize);  //L505 todo: try this when using unicodestring buffer
+        // writeln('DEBUG: len buf: ', length(buf));
       end
       else
         Count:=0;
@@ -63,7 +68,7 @@ begin
           OutputLine:='';
           // L505
           //if (i<Count) and (Buf[i+1] in [#10,#13]) and (Buf[i]<>Buf[i+1]) then
-          if (i<Count) and (CharInset(Buf[i+1], [#10,#13])) and (Buf[i]<>Buf[i+1]) then
+          if (i<Count) and (CharInset(Buf[i], [#10,#13])) and (Buf[i]<>Buf[i+1]) then
             inc(i);
           LineStart:=i+1;
         end;
